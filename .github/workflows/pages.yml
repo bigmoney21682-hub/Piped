@@ -9,7 +9,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Checkout your fork
+      # 1️⃣ Checkout your fork1
       - name: Checkout repository
         uses: actions/checkout@v3
 
