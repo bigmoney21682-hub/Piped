@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: "22"       # Required for Vite 5+
           cache: "pnpm"
 
       - name: Install dependencies
@@ -28,15 +28,13 @@ jobs:
       - name: Build project
         run: pnpm build -- --base=/Piped/
 
-      - name: List output after build
-        run: ls -R .
+      - name: Verify build output
+        run: ls -R dist
 
       - name: Upload build artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build   # <<<<<<<<<<<<<< FIXED
-          name: github-pages
-          retention-days: 1
+          path: dist
 
   deploy:
     needs: build
