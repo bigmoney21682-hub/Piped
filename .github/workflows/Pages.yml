@@ -20,26 +20,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: '22.x'     # <-- FIXED
 
-      # Install dependencies (because your repo has no package-lock.json)
       - name: Install dependencies
         run: npm install
 
-      # Build (outputs build/)
       - name: Build frontend
         run: npm run build -- --base=/${{ github.repository }}/
 
-      # Clean old artifacts
       - name: Clean old Pages artifacts
         run: rm -rf build/* || true
 
-      # Upload artifact for GitHub Pages
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: build
 
-      # Deploy
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
