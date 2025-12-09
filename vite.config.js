@@ -9,6 +9,7 @@ import eslintPlugin from "vite-plugin-eslint";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+    base: "/Piped/", // <== ensures GitHub Pages loads assets correctly
     plugins: [
         vue(),
         Unocss(),
@@ -19,6 +20,7 @@ export default defineConfig({
             targets: ["defaults", "not IE 11"],
         }),
         VitePWA({
+            disable: true, // <== DISABLE SW for GitHub Pages to prevent black screen
             registerType: "autoUpdate",
             workbox: {
                 globPatterns: [
@@ -37,7 +39,7 @@ export default defineConfig({
                             cacheName: "fonts-cache",
                             expiration: {
                                 maxEntries: 10,
-                                maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
+                                maxAgeSeconds: 60 * 60 * 24 * 365, // 365 days
                             },
                             cacheableResponse: {
                                 statuses: [0, 200],
