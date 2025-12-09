@@ -19,19 +19,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version: 22
           cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
 
       - name: Build project
-        run: pnpm build
+        run: pnpm build -- --base=/Piped/
 
       - name: Upload build artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: build   # <<<<<<<<<<<<<< FIXED
           name: github-pages
           retention-days: 1
 
