@@ -12,6 +12,7 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -21,19 +22,24 @@ jobs:
         with:
           node-version: 18
 
+      # Install dependencies (because your repo has no package-lock.json)
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
+      # Build (outputs build/)
       - name: Build frontend
         run: npm run build -- --base=/${{ github.repository }}/
 
+      # Clean old artifacts
       - name: Clean old Pages artifacts
-        run: rm -rf build/* || true   # Updated from dist/*
+        run: rm -rf build/* || true
 
+      # Upload artifact for GitHub Pages
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build                # Updated from dist
+          path: build
 
+      # Deploy
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
