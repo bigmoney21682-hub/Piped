@@ -2,7 +2,7 @@ name: Deploy Piped to GitHub Pages
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   workflow_dispatch:
 
 permissions:
@@ -14,46 +14,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Checkout the code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ Setup pnpm
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: latest
 
-      # 3️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: "pnpm"
 
-      # 4️⃣ Install dependencies
       - name: Install dependencies
         run: pnpm install
 
-      # 5️⃣ Build Piped
       - name: Build Piped with correct base
-        run: |
-          set -e
-          pnpm build -- --base=/Piped/
+        run: pnpm build -- --base=/Piped/
 
-      # 6️⃣ Debug: list all files after build
-      - name: List build output
-        run: |
-          echo "Listing project tree after build:"
-          ls -R .
-
-      # 7️⃣ Upload artifact to GitHub Pages
-      - name: Upload build artifact
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist    # Piped outputs here by default
-          name: github-pages
-          retention-days: 1
+          path: dist
 
   deploy:
     runs-on: ubuntu-latest
@@ -62,5 +46,4 @@ jobs:
       name: github-pages
     steps:
       - name: Deploy to GitHub Pages
-        id: deployment
         uses: actions/deploy-pages@v4
