@@ -2,41 +2,38 @@ name: Deploy Piped to GitHub Pages
 
 on:
   push:
-    branches: [ master ]      # auto-run on commit to master
-  workflow_dispatch:           # optional: allows manual trigger
+    branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # 1️⃣ Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
 
-      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: npm ci
 
-      # 4️⃣ Build Piped frontend
       - name: Build frontend
         run: npm run build -- --base=/${{ github.repository }}/
 
       - name: Clean old Pages artifacts
-        run: rm -rf dist/* || true
+        run: rm -rf build/* || true   # Updated from dist/*
 
-      # 5️⃣ Upload Pages artifact (latest non-deprecated v2 commit)
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v2.3.0
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: dist      # change to build if your fork outputs build/
+          path: build                # Updated from dist
 
-      # 6️⃣ Deploy to GitHub Pages (latest non-deprecated v2 commit)
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v2.3.0
+        uses: actions/deploy-pages@v4
