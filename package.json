@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
+        "start": "node proxy.js",
         "build": "vite build",
         "preview": "vite preview",
         "format": "prettier -w --ignore-path .gitignore **/**.{js,vue,json}",
