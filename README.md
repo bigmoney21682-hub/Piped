@@ -54,7 +54,7 @@ By using Piped, you can freely watch and listen to content without the fear of p
 -   [x] Federated protocol on Matrix to let instances collaborate with each other
 
 ## Having trouble?
-If you have any general questions regarding how Piped works or trouble setting up your own instance, please consult the following public chat rooms and documentation for help. Please use these platforms exclusively for such cases and do NOT open an issue.
+If you or someone you know is have any general questions regarding how Piped works or trouble setting up your own instance, please consult the following public chat rooms and documentation for help. Please use these platforms exclusively for such cases and do NOT open an issue.
 
 ### Public Chat Rooms/Communities
 
