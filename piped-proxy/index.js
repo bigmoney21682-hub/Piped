@@ -1,54 +1,92 @@
 import http from "http";
 import fetch from "node-fetch";
 
-const API_BASE = "https://pipedapi.kavin.rocks"; // Change this to your preferred Piped instance
+const API_BASE = "https://pipedapi.kavin.rocks";
 
-const server = http.createServer(async (req, res) => {
-  // Handle preflight requests
+// Allowed methods
+const ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+
+// CORS headers (ONLY SET ONCE)
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": ALLOWED_METHODS,
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+};
+
+function sendCORS(res, status = 200, extraHeaders = {}) {
+  res.writeHead(status, { ...CORS_HEADERS, ...extraHeaders });
+  res.end();
+}
+
+async function handleRequest(req, res) {
+
+  // Handle OPTIONS first
   if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+    return sendCORS(res, 204);
+  }
+
+  let targetUrl;
+  try {
+    const url = new URL(req.url, "http://localhost");
+    targetUrl = API_BASE + url.pathname + url.search;
+  } catch (e) {
+    console.error("Invalid URL:", req.url);
+    return sendCORS(res, 400);
+  }
+
+  // Copy headers except host
+  const headers = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (k.toLowerCase() !== "host") headers[k] = v;
+  }
+
+  // Only include body for non-GET requests
+  let body = null;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    body = await new Promise((resolve) => {
+      const chunks = [];
+      req.on("data", (c) => chunks.push(c));
+      req.on("end", () => resolve(Buffer.concat(chunks)));
     });
-    return res.end();
   }
 
   try {
-    const url = new URL(req.url, "http://localhost");
-    const targetUrl = API_BASE + url.pathname + url.search;
-
-    const headers = {};
-    req.headers && Object.entries(req.headers).forEach(([k, v]) => headers[k] = v);
-
-    const body = req.method !== "GET" && req.method !== "HEAD"
-      ? await new Promise(r => {
-          let data = [];
-          req.on("data", chunk => data.push(chunk));
-          req.on("end", () => r(Buffer.concat(data)));
-        })
-      : undefined;
-
-    const response = await fetch(targetUrl, {
+    const upstream = await fetch(targetUrl, {
       method: req.method,
       headers,
-      body
+      body,
     });
 
-    const responseBody = await response.arrayBuffer();
+    const responseBody = Buffer.from(await upstream.arrayBuffer());
 
-    res.writeHead(response.status, {
-      ...Object.fromEntries(response.headers),
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+    // Convert upstream headers to a clean object
+    const cleanHeaders = {};
+    upstream.headers.forEach((value, key) => {
+      if (
+        key.toLowerCase() !== "access-control-allow-origin" &&
+        key.toLowerCase() !== "access-control-allow-headers" &&
+        key.toLowerCase() !== "access-control-allow-methods"
+      ) {
+        cleanHeaders[key] = value;
+      }
     });
-    res.end(Buffer.from(responseBody));
-  } catch (err) {
-    res.writeHead(500, { "Content-Type": "text/plain" });
-    res.end("Proxy error: " + err.message);
+
+    // Add CORRECT CORS headers (only once)
+    const finalHeaders = {
+      ...cleanHeaders,
+      ...CORS_HEADERS,
+    };
+
+    res.writeHead(upstream.status, finalHeaders);
+    res.end(responseBody);
+
+  } catch (e) {
+    console.error("Proxy error:", e);
+    sendCORS(res, 500);
   }
-});
+}
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Proxy running on port ${PORT}`));
+http.createServer(handleRequest).listen(PORT, () =>
+  console.log("Proxy running on port", PORT)
+);
