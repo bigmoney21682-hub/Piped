@@ -1,10 +1,10 @@
 import http from "http";
 import fetch from "node-fetch";
 
-const API_BASE = "https://pipedapi.kavin.rocks"; // Your preferred Piped instance
+const API_BASE = "https://pipedapi.kavin.rocks"; // Change this to your preferred Piped instance
 
 const server = http.createServer(async (req, res) => {
-  // Handle OPTIONS preflight
+  // Handle preflight requests
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -18,18 +18,16 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const targetUrl = API_BASE + url.pathname + url.search;
 
-    // Copy incoming headers
     const headers = {};
-    req.headers && Object.entries(req.headers).forEach(([k,v]) => headers[k] = v);
+    req.headers && Object.entries(req.headers).forEach(([k, v]) => headers[k] = v);
 
-    // Only include body for non-GET/HEAD requests
-    const body = req.method !== "GET" && req.method !== "HEAD" 
+    const body = req.method !== "GET" && req.method !== "HEAD"
       ? await new Promise(r => {
           let data = [];
           req.on("data", chunk => data.push(chunk));
           req.on("end", () => r(Buffer.concat(data)));
         })
-      : null;
+      : undefined;
 
     const response = await fetch(targetUrl, {
       method: req.method,
@@ -39,27 +37,15 @@ const server = http.createServer(async (req, res) => {
 
     const responseBody = await response.arrayBuffer();
 
-    // Copy original headers but remove any CORS headers
-    const newHeaders = {};
-    response.headers.forEach((value, key) => {
-      if (!key.toLowerCase().startsWith("access-control-")) {
-        newHeaders[key] = value;
-      }
+    res.writeHead(response.status, {
+      ...Object.fromEntries(response.headers),
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
     });
-
-    // Add proper CORS headers
-    newHeaders["Access-Control-Allow-Origin"] = "*";
-    newHeaders["Access-Control-Allow-Headers"] = "*";
-    newHeaders["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
-
-    res.writeHead(response.status, newHeaders);
     res.end(Buffer.from(responseBody));
-
   } catch (err) {
-    res.writeHead(500, {
-      "Content-Type": "text/plain",
-      "Access-Control-Allow-Origin": "*"
-    });
+    res.writeHead(500, { "Content-Type": "text/plain" });
     res.end("Proxy error: " + err.message);
   }
 });
