@@ -8,17 +8,22 @@ import eslintPlugin from "vite-plugin-eslint";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: "/Piped/",  // ✅ Important for GitHub Pages
+  // ✅ Vercel requires root base, not /Piped/
+  base: "/",
+
   plugins: [
     vue(),
     Unocss(),
     VueI18nPlugin({
       include: path.resolve(__dirname, "./src/locales/**"),
     }),
-    // legacy plugin removed to simplify build
+
     VitePWA({
       registerType: "autoUpdate",
-      base: "/Piped/", // ✅ PWA knows the base path
+
+      // ✅ PWA base must match Vercel root
+      base: "/",
+
       workbox: {
         globPatterns: [
           "**/*.{css,html,js}",
@@ -30,12 +35,13 @@ export default defineConfig({
             handler: "CacheFirst",
             options: {
               cacheName: "fonts-cache",
-              expiration: { maxEntries: 10, maxAgeSeconds: 60*60*24*365 },
-              cacheableResponse: { statuses: [0,200] }
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] }
             }
           }
         ]
       },
+
       manifest: {
         name: "Piped",
         short_name: "Piped",
@@ -47,11 +53,14 @@ export default defineConfig({
         ]
       }
     }),
+
     eslintPlugin(),
   ],
+
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
+
   build: {
     outDir: "dist",
     sourcemap: false,
