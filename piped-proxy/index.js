@@ -1,10 +1,10 @@
 import http from "http";
 import fetch from "node-fetch";
 
-const API_BASE = "https://pipedapi.kavin.rocks"; // Change to your preferred Piped instance
+const API_BASE = "https://pipedapi.kavin.rocks"; // Your preferred Piped instance
 
 const server = http.createServer(async (req, res) => {
-  // Handle OPTIONS preflight requests
+  // Handle OPTIONS preflight
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -14,41 +14,53 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  let url;
   try {
-    url = new URL(req.url, "http://localhost");
-  } catch (err) {
-    res.writeHead(400, { "Access-Control-Allow-Origin": "*" });
-    return res.end("Invalid URL");
-  }
+    const url = new URL(req.url, "http://localhost");
+    const targetUrl = API_BASE + url.pathname + url.search;
 
-  const targetUrl = API_BASE + url.pathname + url.search;
+    // Copy incoming headers
+    const headers = {};
+    req.headers && Object.entries(req.headers).forEach(([k,v]) => headers[k] = v);
 
-  // Copy request headers
-  const headers = {};
-  req.headers && Object.entries(req.headers).forEach(([k, v]) => headers[k] = v);
+    // Only include body for non-GET/HEAD requests
+    const body = req.method !== "GET" && req.method !== "HEAD" 
+      ? await new Promise(r => {
+          let data = [];
+          req.on("data", chunk => data.push(chunk));
+          req.on("end", () => r(Buffer.concat(data)));
+        })
+      : null;
 
-  // Only include body for non-GET/HEAD requests
-  const body = (req.method !== "GET" && req.method !== "HEAD") ? await new Promise(r => {
-    const data = [];
-    req.on("data", chunk => data.push(chunk));
-    req.on("end", () => r(Buffer.concat(data)));
-  }) : null;
-
-  try {
-    const response = await fetch(targetUrl, { method: req.method, headers, body });
-    const responseBody = await response.buffer();
-
-    res.writeHead(response.status, {
-      ...Object.fromEntries(response.headers),
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+    const response = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body
     });
-    res.end(responseBody);
+
+    const responseBody = await response.arrayBuffer();
+
+    // Copy original headers but remove any CORS headers
+    const newHeaders = {};
+    response.headers.forEach((value, key) => {
+      if (!key.toLowerCase().startsWith("access-control-")) {
+        newHeaders[key] = value;
+      }
+    });
+
+    // Add proper CORS headers
+    newHeaders["Access-Control-Allow-Origin"] = "*";
+    newHeaders["Access-Control-Allow-Headers"] = "*";
+    newHeaders["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS";
+
+    res.writeHead(response.status, newHeaders);
+    res.end(Buffer.from(responseBody));
+
   } catch (err) {
-    res.writeHead(502, { "Access-Control-Allow-Origin": "*" });
-    res.end("Bad Gateway: " + err.message);
+    res.writeHead(500, {
+      "Content-Type": "text/plain",
+      "Access-Control-Allow-Origin": "*"
+    });
+    res.end("Proxy error: " + err.message);
   }
 });
 
