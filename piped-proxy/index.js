@@ -1,46 +1,71 @@
-import http from "http";
 import fetch from "node-fetch";
 
-const API_BASE = "https://pipedapi.kavin.rocks"; // Change this to your preferred Piped instance
+const PORT = process.env.PORT || 10000;
 
-const server = http.createServer(async (req, res) => {
-  if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+async function handleRequest(request) {
+  const url = new URL(request.url);
+
+  // Your API instance
+  const API_BASE = "https://pipedapi.kavin.rocks";
+
+  // Handle preflight OPTIONS requests
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      },
     });
-    return res.end();
   }
 
-  const url = new URL(req.url, "http://localhost");
+  // Build target URL
   const targetUrl = API_BASE + url.pathname + url.search;
 
-  const headers = {};
-  req.headers && Object.entries(req.headers).forEach(([k,v]) => headers[k] = v);
+  // Build request init without body for GET/HEAD
+  const init = {
+    method: request.method,
+    headers: request.headers,
+  };
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = request.body;
+  }
 
-  const body = req.method !== "GET" ? await new Promise(r => {
-    let data = [];
-    req.on("data", chunk => data.push(chunk));
-    req.on("end", () => r(Buffer.concat(data)));
-  }) : null;
+  // Fetch from upstream API
+  const response = await fetch(targetUrl, init);
 
-  const response = await fetch(targetUrl, {
-    method: req.method,
-    headers,
-    body
+  // Clone headers and add CORS
+  const newHeaders = new Headers(response.headers);
+  newHeaders.set("Access-Control-Allow-Origin", "*");
+  newHeaders.set("Access-Control-Allow-Headers", "*");
+  newHeaders.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+
+  // Return proxied response
+  return new Response(await response.arrayBuffer(), {
+    status: response.status,
+    headers: newHeaders,
   });
+}
 
-  const responseBody = await response.buffer();
+// If using native Node.js server (Render)
+import http from "http";
 
-  res.writeHead(response.status, {
-    ...Object.fromEntries(response.headers),
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
-  });
-  res.end(responseBody);
+const server = http.createServer((req, res) => {
+  handleRequest(req)
+    .then((response) => {
+      res.writeHead(response.status, Object.fromEntries(response.headers));
+      response.arrayBuffer().then((buf) => {
+        res.end(Buffer.from(buf));
+      });
+    })
+    .catch((err) => {
+      console.error(err);
+      res.writeHead(500);
+      res.end("Internal Server Error");
+    });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Proxy running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Proxy running on port ${PORT}`);
+});
