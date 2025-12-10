@@ -1,92 +1,74 @@
-import http from "http";
+import express from "express";
 import fetch from "node-fetch";
 
+const app = express();
+
+// Your upstream API
 const API_BASE = "https://pipedapi.kavin.rocks";
 
-// Allowed methods
+// Allowed origins (can add multiple)
+const ALLOWED_ORIGINS = ["https://bigmoney21682-hub.github.io", "*"];
+
 const ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
 
-// CORS headers (ONLY SET ONCE)
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": ALLOWED_METHODS,
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-};
+// Enable parsing JSON bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-function sendCORS(res, status = 200, extraHeaders = {}) {
-  res.writeHead(status, { ...CORS_HEADERS, ...extraHeaders });
-  res.end();
-}
+// CORS middleware
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes("*")) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  }
+  res.setHeader("Access-Control-Allow-Methods", ALLOWED_METHODS);
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-async function handleRequest(req, res) {
-
-  // Handle OPTIONS first
   if (req.method === "OPTIONS") {
-    return sendCORS(res, 204);
+    return res.sendStatus(204);
   }
+  next();
+});
 
-  let targetUrl;
+// Proxy all requests to upstream
+app.use(async (req, res) => {
   try {
-    const url = new URL(req.url, "http://localhost");
-    targetUrl = API_BASE + url.pathname + url.search;
-  } catch (e) {
-    console.error("Invalid URL:", req.url);
-    return sendCORS(res, 400);
-  }
-
-  // Copy headers except host
-  const headers = {};
-  for (const [k, v] of Object.entries(req.headers)) {
-    if (k.toLowerCase() !== "host") headers[k] = v;
-  }
-
-  // Only include body for non-GET requests
-  let body = null;
-  if (req.method !== "GET" && req.method !== "HEAD") {
-    body = await new Promise((resolve) => {
-      const chunks = [];
-      req.on("data", (c) => chunks.push(c));
-      req.on("end", () => resolve(Buffer.concat(chunks)));
-    });
-  }
-
-  try {
-    const upstream = await fetch(targetUrl, {
+    const url = new URL(req.url, API_BASE);
+    const options = {
       method: req.method,
-      headers,
-      body,
-    });
+      headers: { ...req.headers },
+    };
 
-    const responseBody = Buffer.from(await upstream.arrayBuffer());
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      options.body = JSON.stringify(req.body);
+    }
 
-    // Convert upstream headers to a clean object
-    const cleanHeaders = {};
+    const upstream = await fetch(url, options);
+
+    // Copy headers from upstream except CORS headers
     upstream.headers.forEach((value, key) => {
       if (
-        key.toLowerCase() !== "access-control-allow-origin" &&
-        key.toLowerCase() !== "access-control-allow-headers" &&
-        key.toLowerCase() !== "access-control-allow-methods"
+        ![
+          "access-control-allow-origin",
+          "access-control-allow-methods",
+          "access-control-allow-headers",
+        ].includes(key.toLowerCase())
       ) {
-        cleanHeaders[key] = value;
+        res.setHeader(key, value);
       }
     });
 
-    // Add CORRECT CORS headers (only once)
-    const finalHeaders = {
-      ...cleanHeaders,
-      ...CORS_HEADERS,
-    };
-
-    res.writeHead(upstream.status, finalHeaders);
-    res.end(responseBody);
-
-  } catch (e) {
-    console.error("Proxy error:", e);
-    sendCORS(res, 500);
+    const data = await upstream.arrayBuffer();
+    res.status(upstream.status).send(Buffer.from(data));
+  } catch (err) {
+    console.error("Proxy error:", err);
+    res.sendStatus(500);
   }
-}
+});
 
-const PORT = process.env.PORT || 3000;
-http.createServer(handleRequest).listen(PORT, () =>
-  console.log("Proxy running on port", PORT)
-);
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Proxy running on port ${PORT}`));
