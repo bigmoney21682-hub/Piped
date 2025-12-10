@@ -1,71 +1,56 @@
+import http from "http";
 import fetch from "node-fetch";
 
-const PORT = process.env.PORT || 10000;
+const API_BASE = "https://pipedapi.kavin.rocks"; // Change to your preferred Piped instance
 
-async function handleRequest(request) {
-  const url = new URL(request.url);
-
-  // Your API instance
-  const API_BASE = "https://pipedapi.kavin.rocks";
-
-  // Handle preflight OPTIONS requests
-  if (request.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      },
+const server = http.createServer(async (req, res) => {
+  // Handle OPTIONS preflight requests
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
     });
+    return res.end();
   }
 
-  // Build target URL
+  let url;
+  try {
+    url = new URL(req.url, "http://localhost");
+  } catch (err) {
+    res.writeHead(400, { "Access-Control-Allow-Origin": "*" });
+    return res.end("Invalid URL");
+  }
+
   const targetUrl = API_BASE + url.pathname + url.search;
 
-  // Build request init without body for GET/HEAD
-  const init = {
-    method: request.method,
-    headers: request.headers,
-  };
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = request.body;
-  }
+  // Copy request headers
+  const headers = {};
+  req.headers && Object.entries(req.headers).forEach(([k, v]) => headers[k] = v);
 
-  // Fetch from upstream API
-  const response = await fetch(targetUrl, init);
+  // Only include body for non-GET/HEAD requests
+  const body = (req.method !== "GET" && req.method !== "HEAD") ? await new Promise(r => {
+    const data = [];
+    req.on("data", chunk => data.push(chunk));
+    req.on("end", () => r(Buffer.concat(data)));
+  }) : null;
 
-  // Clone headers and add CORS
-  const newHeaders = new Headers(response.headers);
-  newHeaders.set("Access-Control-Allow-Origin", "*");
-  newHeaders.set("Access-Control-Allow-Headers", "*");
-  newHeaders.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  try {
+    const response = await fetch(targetUrl, { method: req.method, headers, body });
+    const responseBody = await response.buffer();
 
-  // Return proxied response
-  return new Response(await response.arrayBuffer(), {
-    status: response.status,
-    headers: newHeaders,
-  });
-}
-
-// If using native Node.js server (Render)
-import http from "http";
-
-const server = http.createServer((req, res) => {
-  handleRequest(req)
-    .then((response) => {
-      res.writeHead(response.status, Object.fromEntries(response.headers));
-      response.arrayBuffer().then((buf) => {
-        res.end(Buffer.from(buf));
-      });
-    })
-    .catch((err) => {
-      console.error(err);
-      res.writeHead(500);
-      res.end("Internal Server Error");
+    res.writeHead(response.status, {
+      ...Object.fromEntries(response.headers),
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
     });
+    res.end(responseBody);
+  } catch (err) {
+    res.writeHead(502, { "Access-Control-Allow-Origin": "*" });
+    res.end("Bad Gateway: " + err.message);
+  }
 });
 
-server.listen(PORT, () => {
-  console.log(`Proxy running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Proxy running on port ${PORT}`));
