@@ -24,7 +24,7 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, "dist")));
 
 // Piped API proxy
-const API_BASE = "https://piped-instances.kavin.rocks"; // real Piped instance
+const API_BASE = "/api"; // real Piped instance
 
 app.all("/api/*", async (req, res) => {
   const targetUrl = API_BASE + req.originalUrl.replace(/^\/api/, "");
