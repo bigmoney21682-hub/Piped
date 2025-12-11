@@ -1,21 +1,43 @@
-// Debug all fetch requests and responses
-(function() {
+// SMART DEBUG FETCH LOGGER
+(function () {
   const originalFetch = window.fetch;
+
   window.fetch = async (...args) => {
     const [resource, config] = args;
-    console.log("[DEBUG] Fetching:", resource, config);
+    console.log("%c[FETCH] → " + resource, "color: #4CAF50", config);
 
+    let response;
     try {
-      const response = await originalFetch(...args);
-      const cloned = response.clone(); // clone so original fetch still works
-      cloned.text().then(text => {
-        console.log("[DEBUG] Response from", resource, ":", text);
-      }).catch(err => console.error("[DEBUG] Response parse error:", err));
-      return response;
+      response = await originalFetch(...args);
     } catch (err) {
-      console.error("[DEBUG] Fetch error:", err);
+      console.error("%c[FETCH ERROR] → " + resource, "color: red; font-weight: bold", err);
       throw err;
     }
+
+    // Clone so we can read it without breaking the app
+    const clone = response.clone();
+
+    clone.text()
+      .then(text => {
+        console.log("%c[RESPONSE RAW] ← " + resource, "color: #2196F3", text);
+
+        // Try JSON to detect syntax errors
+        try {
+          JSON.parse(text);
+        } catch (jsonErr) {
+          console.error(
+            "%c🔥 JSON PARSE ERROR ← " + resource,
+            "color: white; background:red; font-weight:bold; padding:2px 4px",
+            jsonErr,
+            "\nRaw text:", text
+          );
+        }
+      })
+      .catch(err =>
+        console.error("%c[RESPONSE TEXT ERROR]", "color: red", err)
+      );
+
+    return response;
   };
 })();
 import { createApp } from "vue";
