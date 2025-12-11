@@ -20,7 +20,7 @@ const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "dist")));
 
 // Forward API requests to a real Piped instance
-const API_BASE = "https://piped-instances.kavin.rocks"; // public Piped instance
+const API_BASE = process.env.PIPED_TARGET || "https://piped.private.coffee";
 
 app.use("/api", async (req, res) => {
   const url = API_BASE + req.originalUrl.replace(/^\/api/, "");
