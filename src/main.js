@@ -1,3 +1,23 @@
+// Debug all fetch requests and responses
+(function() {
+  const originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+    const [resource, config] = args;
+    console.log("[DEBUG] Fetching:", resource, config);
+
+    try {
+      const response = await originalFetch(...args);
+      const cloned = response.clone(); // clone so original fetch still works
+      cloned.text().then(text => {
+        console.log("[DEBUG] Response from", resource, ":", text);
+      }).catch(err => console.error("[DEBUG] Response parse error:", err));
+      return response;
+    } catch (err) {
+      console.error("[DEBUG] Fetch error:", err);
+      throw err;
+    }
+  };
+})();
 import { createApp } from "vue";
 import router from "@/router/router.js";
 import App from "./App.vue";
