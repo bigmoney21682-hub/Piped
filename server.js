@@ -1,8 +1,16 @@
 import express from "express";
 import fetch from "node-fetch";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+// Parse JSON bodies (for POST requests)
+app.use(express.json());
 
 // Allow CORS so frontend can fetch
 app.use((req, res, next) => {
@@ -13,28 +21,38 @@ app.use((req, res, next) => {
 });
 
 // Serve frontend
-import path from "path";
-import { fileURLToPath } from "url";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "dist")));
 
-// Forward API requests to a real Piped instance
-const API_BASE = process.env.PIPED_TARGET || "https://piped.private.coffee";
+// Piped API proxy
+const API_BASE = "https://piped-instances.kavin.rocks"; // real Piped instance
 
-app.use("/api", async (req, res) => {
-  const url = API_BASE + req.originalUrl.replace(/^\/api/, "");
+app.all("/api/*", async (req, res) => {
+  const targetUrl = API_BASE + req.originalUrl.replace(/^\/api/, "");
+
   try {
-    const response = await fetch(url, {
+    const options = {
       method: req.method,
-      headers: { ...req.headers, host: undefined },
-      body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+      headers: { "Content-Type": "application/json" },
+    };
+
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      options.body = JSON.stringify(req.body);
+    }
+
+    const response = await fetch(targetUrl, options);
+
+    // Pass status code and headers
+    res.status(response.status);
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
     });
+
+    // Stream the body
     const data = await response.arrayBuffer();
-    res.status(response.status).send(Buffer.from(data));
+    res.send(Buffer.from(data));
   } catch (err) {
-    console.error(err);
-    res.status(500).send({ error: "Proxy failed" });
+    console.error("Proxy error:", err);
+    res.status(500).json({ error: "Proxy failed" });
   }
 });
 
